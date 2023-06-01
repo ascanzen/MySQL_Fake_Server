@@ -10,11 +10,11 @@ cnx = mysql.connector.connect(
 cur = cnx.cursor()
 
 # Execute a query
-cur.execute("select 1")
+cur.execute("select a,b,c from book")
 
 # # Fetch one result
 row = cur.fetchone()
-print("Current date is: {0}".format(row[0]))
+print("Current date is: {0}".format(row))
 
 # time.sleep(1000)
 # Close connection

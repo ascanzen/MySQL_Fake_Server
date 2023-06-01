@@ -75,7 +75,6 @@ async def handle_server(server_reader, server_writer):
         if cmd == 1:
             result = OK(capability, handshake.status)
         elif cmd == 3:
-            # query = (yield from packet.read()).decode('ascii')
             if "SHOW VARIABLES".lower() in query.lower():
                 print("Sending Fake MySQL Server Environment Data")
                 ColumnDefinitionList(
@@ -104,33 +103,7 @@ async def handle_server(server_reader, server_writer):
 
             elif "SQL_AUTO_IS_NULL".lower() in query.lower():
                 result = OK(capability, handshake.status)
-            elif username in yso_dict:
-                # Serial Data
-                print(
-                    "Sending Presetting YSO Data with username "
-                    + username.decode("ascii")
-                )
-                ColumnDefinitionList(
-                    (
-                        ColumnDefinition("a"),
-                        ColumnDefinition("b"),
-                        ColumnDefinition("c"),
-                    )
-                ).write(server_writer)
-                EOF(capability, handshake.status).write(server_writer)
-                ResultSet(("11", yso_dict[username], "2333")).write(server_writer)
-                result = EOF(capability, handshake.status)
             elif query.encode("ascii").decode("ascii") == "select a,b,c from book":
-                # ColumnDefinitionList((ColumnDefinition("database"),)).write(
-                #     server_writer
-                # )
-                # EOF(capability, handshake.status).write(server_writer)
-                # ResultSet(("test",)).write(server_writer)
-                # result = EOF(capability, handshake.status)
-
-                print(
-                    "Sending Presetting Data with username " + username.decode("ascii")
-                )
                 ColumnDefinitionList(
                     (
                         ColumnDefinition("a"),
@@ -145,17 +118,6 @@ async def handle_server(server_reader, server_writer):
                 ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
                 ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
                 result = EOF(capability, handshake.status)
-
-            # elif flag == 1:
-            #       print("Sending Fake MySQL Server Environment Data")
-            #       ColumnDefinitionList((ColumnDefinition('d'),ColumnDefinition('e'))).write(server_writer)
-            #      EOF(capability, handshake.status).write(server_writer)
-            #     ResultSet(("max_allowed_packet","67108864")).write(server_writer)
-            #    ResultSet(("system_time_zone","UTC")).write(server_writer)
-            #   ResultSet(("time_zone","SYSTEM")).write(server_writer)
-            #  ResultSet(("init_connect","")).write(server_writer)
-            # ResultSet(("auto_increment_increment","1")).write(server_writer)
-            # result = EOF(capability, handshake.status)
 
             else:
                 # yield from process_fileread(
