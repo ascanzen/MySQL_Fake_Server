@@ -5,6 +5,8 @@ from .types import IntLengthEncoded, StringLengthEncoded
 
 # 参照C++版本
 
+# https://github.com/loganlinn/ClickHouse/blob/5f99d887ccc235c6c177ccbf5f96292806f5a0d7/src/Core/MySQLProtocol.h#L43
+
 # enum ColumnType
 # {
 #     MYSQL_TYPE_DECIMAL = 0x00,
@@ -60,6 +62,23 @@ class ColumnDefinition:
         self.col_type = col_type
 
     def write(self, stream):
+        # packet = [
+        #     StringLengthEncoded.write(b"def"),  # catalog
+        #     StringLengthEncoded.write(b""),  # schema
+        #     StringLengthEncoded.write(b"book"),  # table
+        #     StringLengthEncoded.write(b"book"),  # org_table
+        #     StringLengthEncoded.write(self.name.encode("ascii")),
+        #     StringLengthEncoded.write(self.name.encode("ascii")),
+        #     b"\x0c",  # filter1
+        #     b"\x3f\x00",  # character_set
+        #     b"\x1c\x00\x00\x00",  # column_length
+        #     # b'\xfc', #column_type
+        #     self.col_type,  # column_type
+        #     b"\xff\xff",  # flags
+        #     b"\x00",  # decimals
+        #     b"\x00" * 2,  # filler_2
+        # ]
+
         packet = [
             StringLengthEncoded.write(b"def"),  # catalog
             StringLengthEncoded.write(b""),  # schema
@@ -67,11 +86,14 @@ class ColumnDefinition:
             StringLengthEncoded.write(b"book"),  # org_table
             StringLengthEncoded.write(self.name.encode("ascii")),
             StringLengthEncoded.write(self.name.encode("ascii")),
+            # 12个字节长度
             b"\x0c",  # filter1
-            b"\x3f\x00",  # character_set
-            b"\x1c\x00\x00\x00",  # column_length
+            # b"\x3f\x00",  # character_set
+            b"\x21\x00",
+            b"\x00\x00\x00\xff",  # column_length
             # b'\xfc', #column_type
             self.col_type,  # column_type
+            # https://dev.mysql.com/doc/dev/mysql-server/latest/group__group__cs__column__definition__flags.html
             b"\xff\xff",  # flags
             b"\x00",  # decimals
             b"\x00" * 2,  # filler_2
