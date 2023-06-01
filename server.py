@@ -140,6 +140,10 @@ async def handle_server(server_reader, server_writer):
                 ).write(server_writer)
                 EOF(capability, handshake.status).write(server_writer)
                 ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
                 result = EOF(capability, handshake.status)
 
             # elif flag == 1:
