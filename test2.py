@@ -4,18 +4,14 @@ import time
 
 # Connect to server
 cnx = mysql.connector.connect(
-    host="192.168.9.240",
-    port=3306,
-    user="iotServer",
-    password="8o2hm6hNQx4LZBKJ",
-    database="iot_server_new",
+    host="127.0.0.1", port=3306, user="xxx", password="s3cre3t!"
 )
 
 # Get a cursor
 cur = cnx.cursor()
 
 # Execute a query
-cur.execute("select name,bio from authors")
+cur.execute("select a,b,c from book")
 
 for i in range(len(cur.description)):
     print("Column {}:".format(i + 1))

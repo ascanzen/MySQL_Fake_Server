@@ -54,6 +54,133 @@ from .types import IntLengthEncoded, StringLengthEncoded
 #     }
 # };
 
+import struct
+import socket
+import warnings
+import asynchat
+import asyncore
+
+from .mysql_constants import *
+
+"""
+Authors: Daniil Sadyrin (http://twitter.com/cyberguru007), Alexey Moskvin
+https://github.com/CFandR-github
+"""
+
+
+class Packet:
+    def __init__(self):
+        pass
+
+    def pack_1_byte(self, v):
+        return struct.pack("B", v)
+
+    def pack_2_bytes(self, v):
+        return struct.pack("BB", v & 0xFF, v >> 8)
+
+    def pack_3_bytes(self, v):
+        return struct.pack("BBB", v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF)
+
+    def pack_4_bytes(self, v):
+        return struct.pack("I", v)
+
+    def pack(self, nested=True):
+        if hasattr(self, "get_to_str"):
+            self.data = self.get_to_str()
+        else:
+            raise Exception("Eror")
+
+        if not nested:
+            r = b""
+            r += self.pack_3_bytes(len(self.data))
+            r += self.pack_1_byte(self.num)
+            r += self.data
+        else:
+            r = self.data
+        return r
+
+
+class LengthEncodedInteger(Packet):
+    def __init__(self, value):
+        self.value = value
+
+    def get_to_str(self):
+        if self.value < 251:
+            return self.pack_1_byte(self.value)
+        elif self.value >= 251 and self.value < (1 << 16):
+            return b"\xfc" + self.pack_2_bytes(self.value)
+        elif self.value >= (1 << 16) and self.value < (1 << 24):
+            return b"\xfd" + self.pack_3_bytes(self.value)
+        elif self.value >= (1 << 24) and self.value < (1 << 64):
+            return b"\xfe" + self.pack_4_bytes(self.value)
+
+
+class LengthEncodedString(Packet):
+    def __init__(self, text):
+        self.text = text.encode("ascii")
+
+    def get_to_str(self):
+        r = LengthEncodedInteger(len(self.text)).pack()
+        r += self.text
+        return r
+
+
+class ColumnDefinition1(Packet):
+    def __init__(
+        self,
+        catalog,
+        schema,
+        table,
+        org_table,
+        name,
+        org_name,
+        charsetnr=MysqlCollation.UTF8_GENERAL_CI,
+        length=0xFF,
+        type_=FieldFlags.FIELD_TYPE_VARCHAR,
+        flags=0xFFFF,
+        decimals=0,
+    ):
+        self.catalog = catalog
+        self.schema = schema
+        self.table = table
+        self.org_table = org_table
+        self.name = name
+        self.org_name = org_name
+        self.next_length = 0x0C
+        self.charsetnr = charsetnr
+        self.length = length
+        self.type = type_
+        self.flags = flags
+        self.decimals = decimals
+
+    def get_to_str(self):
+        r = b""
+        r += LengthEncodedString(self.catalog).pack()
+        r += LengthEncodedString(self.schema).pack()
+        r += LengthEncodedString(self.table).pack()
+        r += LengthEncodedString(self.org_table).pack()
+        r += LengthEncodedString(self.name).pack()
+        r += LengthEncodedString(self.org_name).pack()
+        r += LengthEncodedInteger(self.next_length).pack()
+        r += self.pack_2_bytes(self.charsetnr)
+        r += self.pack_4_bytes(self.length)
+        r += self.pack_1_byte(self.type)
+        r += self.pack_2_bytes(self.flags)
+        r += self.pack_1_byte(self.decimals)
+        r += b"\x00\x00"
+        return r
+
+    def write(self, stream):
+        p = self.get_to_str()
+        print(p)
+        stream.write(p)
+
+
+def make_column_def(table, name, type, column_flags):
+    return ColumnDefinition1(
+        "def", "", table, table, name, name, type_=type, flags=column_flags
+    )
+
 
 # https://dev.mysql.com/doc/internals/en/protocoltext-resultset.html
 class ColumnDefinition:

@@ -15,10 +15,65 @@ from mysqlproto.protocol.handshake import (
 )
 from mysqlproto.protocol.query import (
     ColumnDefinition,
+    ColumnDefinition1,
     ColumnDefinitionList,
     ResultSet,
     FileReadPacket,
+    make_column_def,
 )
+from mysqlproto.protocol.mysql_constants import FieldFlags
+
+import mysql.connector
+from mysql.connector import FieldType
+
+
+def gen_mysql_response():
+    # Connect to server
+    cnx = mysql.connector.connect(
+        host="192.168.9.240",
+        port=3306,
+        user="iotServer",
+        password="8o2hm6hNQx4LZBKJ",
+        database="iot_server_new",
+    )
+
+    # Get a cursor
+    cur = cnx.cursor()
+
+    # Execute a query
+    cur.execute("select name,bio from authors")
+
+    columns = ColumnDefinitionList()
+    results = []
+
+    for i in range(len(cur.description)):
+        print("Column {}:".format(i + 1))
+        desc = cur.description[i]
+        print("  column_name = {}".format(desc[0]))
+        print("  type = {} ({})".format(desc[1], FieldType.get_info(desc[1])))
+        print("  null_ok = {}".format(desc[6]))
+        print("  column_flags = {}".format(desc[7]))
+
+        columns.columns.append(
+            make_column_def(
+                "book",
+                "a",
+                FieldFlags.FIELD_TYPE_VARCHAR,
+                column_flags=0xFFFF,
+            ),
+        )
+
+    # # Fetch one result
+    rows = cur.fetchall()
+    # print("Current date is: {0}".format(rows))
+    for row in rows:
+        print(row)
+        results.append(ResultSet(row))
+
+    # Close connection
+    cnx.close()
+
+    return columns, results
 
 
 async def accept_server(server_reader, server_writer):
@@ -103,20 +158,45 @@ async def handle_server(server_reader, server_writer):
 
             elif "SQL_AUTO_IS_NULL".lower() in query.lower():
                 result = OK(capability, handshake.status)
-            elif query.encode("ascii").decode("ascii") == "select a,b,c from book":
-                ColumnDefinitionList(
-                    (
-                        ColumnDefinition("a"),
-                        ColumnDefinition("b"),
-                        ColumnDefinition("c"),
-                    )
-                ).write(server_writer)
+            elif query.encode("ascii").decode("ascii") in [
+                "select name,bio from authors",
+                "select a,b,c from book",
+            ]:
+                # ColumnDefinitionList(
+                #     (
+                #         make_column_def(
+                #             "book",
+                #             "a",
+                #             FieldFlags.FIELD_TYPE_VARCHAR,
+                #             column_flags=0xFFFF,
+                #         ),
+                #         make_column_def(
+                #             "book",
+                #             "b",
+                #             FieldFlags.FIELD_TYPE_VARCHAR,
+                #             column_flags=0xFFFF,
+                #         ),
+                #         make_column_def(
+                #             "book",
+                #             "c",
+                #             FieldFlags.FIELD_TYPE_VARCHAR,
+                #             column_flags=0xFFFF,
+                #         ),
+                #     )
+                # ).write(server_writer)
+                # EOF(capability, handshake.status).write(server_writer)
+                # ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                # ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                # ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                # ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                # ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                # result = EOF(capability, handshake.status)
+
+                columns, result_set = gen_mysql_response()
+                columns.write(server_writer)
                 EOF(capability, handshake.status).write(server_writer)
-                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
-                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
-                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
-                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
-                ResultSet(("cochran", "asset pricing", "CN123456")).write(server_writer)
+                for r in result_set:
+                    r.write(server_writer)
                 result = EOF(capability, handshake.status)
 
             else:
